@@ -51,40 +51,45 @@ app.service('MinimaxService', [
   function() {
     this.getMove = function(game) {
       var board = game.board;
-      var best = -2;
-      var bestMove;
-      board.moves().forEach(function(move) {
-        var score = miniMove(makeMove(board, game.symbols.computer, move),
-          game.symbols);
-        if (score > best) {
-          best = score;
-          bestMove = move;
-        }
-      });
+      var best = -1;
+      var moves = board.moves();
+      var bestMove = moves[0];
+      if (moves.length < 8) {
+        moves.forEach(function(move) {
+          var score = miniMove(makeMove(board, game.symbols.computer, move),
+            game.symbols, 0);
+          if (score > best) {
+            best = score;
+            bestMove = move;
+          }
+        });
+      } else if (_.contains(moves, 4)) {
+        bestMove = 4;
+      }
       return bestMove;
     };
 
-    function miniMove(board, symbols) {
+    function miniMove(board, symbols, depth) {
       var winner = board.winner();
-      var best = 2;
-      if (winner === symbols.computer) return 1;
+      var best = 0;
+      if (winner === symbols.computer) return 20 - depth;
       if (winner === symbols.human) return -1;
-      if (board.full()) return 0;
       board.moves().forEach(function(move) {
-        var score = maxiMove(makeMove(board, symbols.human, move), symbols);
+        var score = maxiMove(makeMove(board, symbols.human, move), symbols,
+          depth + 1);
         if (score < best) best = score;
       });
       return best;
     }
 
-    function maxiMove(board, symbols) {
+    function maxiMove(board, symbols, depth) {
       var winner = board.winner();
-      var best = -2;
+      var best = 0;
       if (winner === symbols.computer) return 1;
-      if (winner === symbols.human) return -1;
-      if (board.full()) return 0;
+      if (winner === symbols.human) return -20 + depth;
       board.moves().forEach(function(move) {
-        var score = miniMove(makeMove(board, symbols.computer, move), symbols);
+        var score = miniMove(makeMove(board, symbols.computer, move), symbols,
+          depth + 1);
         if (score > best) best = score;
       });
       return best;
