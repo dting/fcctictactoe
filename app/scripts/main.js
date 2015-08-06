@@ -9,37 +9,49 @@ app.config(function($mdThemingProvider) {
     .warnPalette('green');
 });
 
-app.controller('AppCtrl', [
-  '$scope',
-  '$timeout',
-  'Game',
-  'MinimaxService',
-  function($scope, $timeout, Game, MinimaxService) {
+app.controller('AppCtrl', ['$scope', '$timeout', 'Board', 'MinimaxService',
+  function($scope, $timeout, Board, MinimaxService) {
     var vm = this;
-    vm.game = new Game();
-    vm.classForSymbol = function(symbol) {
-      return symbol === 'x' ? 'md-accent' : 'md-warn';
-    };
+
+    // Board
+    vm.board = new Board();
     vm.clickTile = function(idx) {
-      if (vm.game.board.tiles[idx] || vm.thinking || vm.gameOver) {
+      if (vm.board.tiles[idx] || vm.thinking || vm.gameOver) {
         return;
       }
-      vm.game.started = true;
       vm.thinking = true;
-      vm.game.board.mark(vm.game.symbols.human, idx);
-      vm.gameOver = vm.game.board.winner() || vm.game.board.full();
+      vm.board.mark(1, idx);
+      vm.gameOver = vm.board.winner() || vm.board.full();
       if (!vm.gameOver) {
-        vm.game.board.mark(vm.game.symbols.computer,
-          MinimaxService.getMove(vm.game));
+        vm.board.mark(2, MinimaxService.getMove(vm.board));
       }
-      vm.gameOver = vm.game.board.winner() || vm.game.board.full();
+      vm.gameOver = vm.board.winner() || vm.board.full();
       vm.thinking = false;
+    };
+
+    // Symbols
+    vm.symbols = {1: '&#9675;', 2: '&times;', 0: ''};
+    vm.toggleSymbols = function() {
+      if (_.any(this.board.tiles)) return;
+      if (vm.symbols[2] === '&times;') {
+        vm.symbols[2] = '&#9675;';
+        vm.symbols[1] = '&times;';
+      } else {
+        vm.symbols[2] = '&times;';
+        vm.symbols[1] = '&#9675;';
+      }
+    };
+    vm.classForSymbol = function(symbol) {
+      return symbol === '&times;' ? 'md-accent' : 'md-warn';
+    };
+    vm.symbolForPlayer = function(player) {
+      return vm.symbols[player];
     };
 
     $scope.$watch('vm.gameOver', function(newVal, oldVal) {
       if (newVal !== oldVal && newVal) {
         $timeout(function() {
-          vm.game = new Game();
+          vm.board = new Board();
           vm.gameOver = false;
         }, 2000);
       }
@@ -47,135 +59,98 @@ app.controller('AppCtrl', [
   }
 ]);
 
-app.service('MinimaxService', [
-  function() {
-    this.getMove = function(game) {
-      var board = game.board;
-      var best = -1;
-      var moves = board.moves();
-      var bestMove = moves[0];
-      if (moves.length < 8) {
-        moves.forEach(function(move) {
-          var score = miniMove(makeMove(board, game.symbols.computer, move),
-            game.symbols, 0);
-          if (score > best) {
-            best = score;
-            bestMove = move;
-          }
-        });
-      } else if (_.contains(moves, 4)) {
-        bestMove = 4;
-      }
-      return bestMove;
-    };
-
-    function miniMove(board, symbols, depth) {
-      var winner = board.winner();
-      var best = 0;
-      if (winner === symbols.computer) return 20 - depth;
-      if (winner === symbols.human) return -1;
-      board.moves().forEach(function(move) {
-        var score = maxiMove(makeMove(board, symbols.human, move), symbols,
-          depth + 1);
-        if (score < best) best = score;
-      });
-      return best;
-    }
-
-    function maxiMove(board, symbols, depth) {
-      var winner = board.winner();
-      var best = 0;
-      if (winner === symbols.computer) return 1;
-      if (winner === symbols.human) return -20 + depth;
-      board.moves().forEach(function(move) {
-        var score = miniMove(makeMove(board, symbols.computer, move), symbols,
-          depth + 1);
-        if (score > best) best = score;
-      });
-      return best;
-    }
-
-    function makeMove(board, symbol, move) {
-      var newBoard = board.copy();
-      newBoard.mark(symbol, move);
-      return newBoard;
-    }
-  }
-]);
-
-app.factory('Board', [
-  function() {
-    var WINS = [
-      [0, 1, 2], [3, 4, 5], [6, 7, 8], // h
-      [0, 3, 6], [1, 4, 7], [2, 5, 8], // v
-      [0, 4, 8], [2, 4, 6] // d
-    ];
-
-    function Board(tiles) {
-      this.tiles = tiles ? tiles : Array.apply(null, Array(9));
-    }
-
-    Board.prototype.copy = function() {
-      return new Board(this.tiles.slice());
-    };
-
-    Board.prototype.mark = function(symbol, index) {
-      this.tiles[index] = symbol;
-    };
-
-    Board.prototype.moves = function() {
-      var m = [];
-      this.tiles.forEach(function(tile, move) {
-        if (!tile) m.push(move);
-      });
-      return m;
-    };
-
-    Board.prototype.winner = function() {
-      var i = WINS.length;
-      for (var i = 0; i < WINS.length; i++) {
-        var w = WINS[i];
-        if (this.tiles[w[0]] === this.tiles[w[1]] &&
-            this.tiles[w[1]] === this.tiles[w[2]]) {
-          return this.tiles[w[0]];
+app.service('MinimaxService', [function() {
+  this.getMove = function(board) {
+    var best = -1;
+    var moves = board.moves();
+    var bestMove = moves[0];
+    if (moves.length < 8) {
+      moves.forEach(function(move) {
+        var score = miniMove(board.copy().mark(2, move), 0);
+        if (score > best) {
+          best = score;
+          bestMove = move;
         }
-      }
-      return '';
-    };
-
-    Board.prototype.full = function() {
-      var i = this.tiles.length;
-      while (i--) {
-        if (!this.tiles[i]) return false;
-      }
-      return true;
-    };
-
-    return Board;
-  }
-]);
-
-app.factory('Game', [
-  'Board', function(Board) {
-    function Game() {
-      this.board = new Board();
-      this.symbols = {human: 'o', computer: 'x'};
+      });
+    } else if (_.contains(moves, 4)) {
+      bestMove = 4;
     }
+    return bestMove;
+  };
 
-    Game.prototype.toggleSymbols = function() {
-      this.symbols.human =
-        [this.symbols.computer, this.symbols.computer = this.symbols.human][0];
-    };
-
-    return Game;
+  function miniMove(board, depth) {
+    var winner = board.winner();
+    var best = 0;
+    if (winner === 2) return 20 - depth;
+    if (winner === 1) return -1;
+    board.moves().forEach(function(move) {
+      best = Math.min(maxiMove(board.copy().mark(1, move), depth + 1), best);
+    });
+    return best;
   }
+
+  function maxiMove(board, depth) {
+    var winner = board.winner();
+    var best = 0;
+    if (winner === 2) return 1;
+    if (winner === 1) return -20 + depth;
+    board.moves().forEach(function(move) {
+      best = Math.max(miniMove(board.copy().mark(2, move), depth + 1), best);
+    });
+    return best;
+  }
+}]);
+
+app.constant('WINS', [
+  [0, 1, 2], [3, 4, 5], [6, 7, 8], // h
+  [0, 3, 6], [1, 4, 7], [2, 5, 8], // v
+  [0, 4, 8], [2, 4, 6] // d
 ]);
 
-app.filter("symbol", [
-  '$sce', function($sce) {
-    return function(symbol) {
-      if (!symbol) return symbol;
-      return $sce.trustAsHtml(symbol === 'x' ? '&times;' : '&#9675;');
-    };
+app.factory('Board', ['WINS', function(WINS) {
+  function Board(tiles) {
+    this.tiles = tiles ? tiles : [0, 0, 0, 0, 0, 0, 0, 0, 0];
   }
-]);
+
+  Board.prototype.copy = function() {
+    return new Board(this.tiles.slice());
+  };
+
+  Board.prototype.mark = function(player, index) {
+    this.tiles[index] = player;
+    return this;
+  };
+
+  Board.prototype.moves = function() {
+    var m = [];
+    this.tiles.forEach(function(tile, move) {
+      if (!tile) m.push(move);
+    });
+    return m;
+  };
+
+  Board.prototype.winner = function() {
+    for (var i = 0; i < WINS.length; i++) {
+      var w = WINS[i];
+      if (this.tiles[w[0]] &&
+          this.tiles[w[0]] === this.tiles[w[1]] &&
+          this.tiles[w[1]] === this.tiles[w[2]]) {
+        return this.tiles[w[0]];
+      }
+    }
+    return '';
+  };
+
+  Board.prototype.full = function() {
+    return _.every(this.tiles, _.identity);
+  };
+
+  return Board;
+}]);
+
+app.filter("symbol", ['$sce', function($sce) {
+  return function(symbol) {
+    if (!symbol) return '';
+    return $sce.trustAsHtml(symbol);
+  };
+}]);
