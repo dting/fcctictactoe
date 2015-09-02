@@ -59,14 +59,14 @@ app.controller('AppCtrl', ['$scope', '$timeout', 'Board', 'MinimaxService',
   }
 ]);
 
-app.service('MinimaxService', [function() {
+app.service('MinimaxService', ['COMPUTER', 'PLAYER', function(COMPUTER, PLAYER) {
   this.getMove = function(board) {
-    var best = -1;
+    var best = -Infinity;
     var moves = board.moves();
     var bestMove = moves[0];
     if (moves.length < 8) {
       moves.forEach(function(move) {
-        var score = miniMove(board.copy().mark(2, move), 0);
+        var score = miniMove(board.copy().mark(COMPUTER, move), 0);
         if (score > best) {
           best = score;
           bestMove = move;
@@ -80,22 +80,28 @@ app.service('MinimaxService', [function() {
 
   function miniMove(board, depth) {
     var winner = board.winner();
-    var best = 0;
-    if (winner === 2) return 20 - depth;
-    if (winner === 1) return -1;
-    board.moves().forEach(function(move) {
-      best = Math.min(maxiMove(board.copy().mark(1, move), depth + 1), best);
+    var moves = board.moves();
+    var best = Infinity;
+
+    if (winner === COMPUTER) return 20 - depth;
+    if (winner === PLAYER) return depth - 20;
+    if (!moves.length) return 0;
+    moves.forEach(function(move) {
+      best = Math.min(maxiMove(board.copy().mark(PLAYER, move), depth + 1), best);
     });
     return best;
   }
 
   function maxiMove(board, depth) {
     var winner = board.winner();
-    var best = 0;
-    if (winner === 2) return 1;
-    if (winner === 1) return -20 + depth;
-    board.moves().forEach(function(move) {
-      best = Math.max(miniMove(board.copy().mark(2, move), depth + 1), best);
+    var moves = board.moves();
+    var best = -Infinity;
+    
+    if (winner === COMPUTER) return 20 - depth;
+    if (winner === PLAYER) return depth - 20;
+    if (!moves.length) return 0;
+    moves.forEach(function(move) {
+      best = Math.max(miniMove(board.copy().mark(COMPUTER, move), depth + 1), best);
     });
     return best;
   }
@@ -106,6 +112,9 @@ app.constant('WINS', [
   [0, 3, 6], [1, 4, 7], [2, 5, 8], // v
   [0, 4, 8], [2, 4, 6] // d
 ]);
+
+app.constant('PLAYER', 1);
+app.constant('COMPUTER', 2);
 
 app.factory('Board', ['WINS', function(WINS) {
   function Board(tiles) {
